@@ -1,0 +1,32 @@
+# Compiled binaries
+/nselecttrace
+/nselecttrace.exe
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Coverage and profiling output
+*.cover
+*.prof
+coverage.*
+
+# Go workspace files
+go.work
+go.work.sum
+
+# Dependency directories (only used if vendoring is enabled)
+/vendor/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini

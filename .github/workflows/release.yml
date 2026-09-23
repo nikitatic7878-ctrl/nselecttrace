@@ -1,0 +1,97 @@
+name: Release
+
+# Builds release archives when a version tag is pushed, for example v0.1.0.
+# Nothing is published on a normal branch push.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+          check-latest: false
+
+      - name: Verify the module is consistent
+        run: go mod verify
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -count=1 ./...
+
+      - name: Build
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+
+          # The tag name is the release version, for example v0.1.0.
+          version="${GITHUB_REF_NAME#v}"
+
+          # The suffix only exists so the binary name is unambiguous on disk.
+          suffix=""
+          if [ "${GOOS}" = "windows" ]; then
+            suffix=".exe"
+          fi
+
+          package="nselecttrace-${GITHUB_REF_NAME}-${GOOS}-${GOARCH}"
+          binary="nselecttrace${suffix}"
+
+          mkdir -p "dist/${package}"
+
+          go build -trimpath \
+            -ldflags "-s -w \
+              -X nselecttrace/internal/buildinfo.Version=${version} \
+              -X nselecttrace/internal/buildinfo.Commit=${GITHUB_SHA::7} \
+              -X nselecttrace/internal/buildinfo.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            -o "dist/${package}/${binary}" \
+            ./cmd/nselecttrace
+
+          cp LICENSE README.md README.ru.md "dist/${package}/"
+
+          if [ "${GOOS}" = "windows" ]; then
+            (cd dist && zip -q -r "${package}.zip" "${package}")
+          else
+            (cd dist && tar -czf "${package}.tar.gz" "${package}")
+          fi
+
+      - name: Upload the archive to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.zip
+            dist/*.tar.gz
+          generate_release_notes: true
